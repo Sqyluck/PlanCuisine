@@ -4,13 +4,10 @@
 #include "PN532.h"
 #include <string.h>
 
-// pin capteur infrarouge
 #define IR_PIN A0
+#define RELAY_UP 4 // Up yellow brown
+#define RELAY_DOWN 7 // Down violet red
 #define IR_MODEL 20150
-// pin pour faire monter la table
-#define RELAY_UP 2 // Up
-// pin pour faire descendre la table
-#define RELAY_DOWN 4 // Down
 #define UID_MAX_LENGTH 15
 #define HEIGHT_TOLERANCE 1
 
@@ -31,11 +28,11 @@ PN532 nfc(pn532spi);
 uint8_t uid[]={ 0, 0, 0, 0, 0, 0, 0 };
 uint8_t uidLength=0;
 char uidString[UID_MAX_LENGTH]="";
-char authorizedIDs[][15] = { // Fabien, Cédric, Walid, Nacim
-  "e40657ec", "6a2cd90b", "6a6dde0b", "8a91d90b"
+char authorizedIDs[][15] = { // Fabien, Cédric, Walid, Nacim, Luc, PA, Alan, Arthur, Gaetane
+  "e40657ec", "6a2cd90b", "6a6dde0b", "261c589c", "543257ec", "5adbda0b", "543357ec", "34a456ec", "245156ec"
 };
-int associatedHeight[5] = {
-  80, 73, 73, 80
+int associatedHeight[9] = {
+  73, 73, 73, 73, 70, 67, 73, 67, 60
 };
 int targetHeight=-1;
 boolean newUid=false;
@@ -46,11 +43,11 @@ boolean goingUp=true;
 
 void setup(void) {
   Serial.begin(9600);
-
+  
   // SHARP IR
   pinMode(IR_PIN, INPUT);
   // -------
-
+  
   // NFC SHIELD
   nfc.begin();
   uint32_t versiondata = nfc.getFirmwareVersion();
@@ -60,37 +57,46 @@ void setup(void) {
   }
   nfc.SAMConfig();
   // -------
-
-
+  
+  
   pinMode(7, OUTPUT);
   digitalWrite(7, HIGH);
-
-
+  
+  
   // RELAY CARD
   pinMode(RELAY_UP, OUTPUT);
   pinMode(RELAY_DOWN, OUTPUT);
+  // -------  
+  digitalWrite(RELAY_UP, LOW);
+  digitalWrite(RELAY_DOWN, HIGH);
+  delay(3000);
+  digitalWrite(RELAY_UP, HIGH);
+  digitalWrite(RELAY_DOWN, LOW);
+  delay(3000);
   digitalWrite(RELAY_UP, HIGH);
   digitalWrite(RELAY_DOWN, HIGH);
-  // -------
 
-  Serial.println("SETUP");
+Serial.println("SETUP");
 }
 
 void readHeight(void) {
-
+  
   Serial.print("Current height : ");
   Serial.print(height);
   Serial.println("cm");
-
-  height=sharp.distance();
-
+  unsigned int averageHeight=0;
+  for(unsigned int i=0; i<5; i++) {
+    averageHeight += sharp.distance();
+  }
+  averageHeight /= 5;
+  height = averageHeight;
 }
 
 void convertUIDtoString(void) {
   if (!uidLength) {
     return;
   }
-
+  
   memset(uidString, '\0', UID_MAX_LENGTH);
   int i;
   for (int i=0; i < uidLength; i++) {
@@ -98,12 +104,11 @@ void convertUIDtoString(void) {
   }
 }
 
-// lecture badge
 void readUid(void) {
   int uidLengthSav=uidLength;
   char uidStringSav[UID_MAX_LENGTH]="";
   strncpy(uidStringSav, uidString, uidLength);
-
+  
   uidLength=0;
   nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength);
   if (!uidLength) {
@@ -111,16 +116,15 @@ void readUid(void) {
     return;
   }
   convertUIDtoString();
-
+  
   if (uidLength!=uidLengthSav || strncmp(uidString, uidStringSav, uidLength)) {
     Serial.println("New UID read");
     newUid=true;
   }
-
+  
   free(uidStringSav);
 }
 
-//Hauteur associee badge
 int getAssociatedHeight(char* uidString) {
   int i;
   for (i = 0; i<sizeof(authorizedIDs)/15; i++) {
@@ -131,13 +135,11 @@ int getAssociatedHeight(char* uidString) {
   return -1;
 }
 
-//affiche le badge
 void printUid(void) {
   Serial.print("UID : ");
   Serial.println(uidString);
 }
 
-//affiche l'Hauteur cible
 void printTargetHeight(boolean found) {
   if (found) {
     Serial.print("Target height : ");
@@ -148,12 +150,17 @@ void printTargetHeight(boolean found) {
   }
 }
 
-//affiche le mouvement actuel
 void printMove() {
   if (goingUp) {
     Serial.print("Moving up ");
+    digitalWrite(RELAY_DOWN, LOW);
+    digitalWrite(RELAY_UP, HIGH);
+    delay(1000);
   } else {
     Serial.print("Moving down ");
+    digitalWrite(RELAY_DOWN, HIGH);
+    digitalWrite(RELAY_UP, LOW);
+    delay(1000);
   }
   Serial.print(height);
   Serial.print("/");
@@ -202,8 +209,6 @@ void onMove() {
       relayActivated=true;
       goingUp=true;
       razRelay();
-      digitalWrite(RELAY_DOWN, HIGH);
-      digitalWrite(RELAY_UP, LOW);
     }
     printMove();
   } else if (targetHeight<height-HEIGHT_TOLERANCE) {
@@ -211,8 +216,6 @@ void onMove() {
       relayActivated=true;
       goingUp=false;
       razRelay();
-      digitalWrite(RELAY_UP, HIGH);
-      digitalWrite(RELAY_DOWN, LOW);
     }
     printMove();
   }
@@ -227,6 +230,7 @@ void onMove() {
 void onNewUid() {
   printUid();
   targetHeight=getAssociatedHeight(uidString);
+  Serial.println(targetHeight);
   if (targetHeight!=-1) {
     razRelay();
     printTargetHeight(true);
@@ -238,20 +242,16 @@ void onNewUid() {
   newUid=false;
 }
 
-
-// boucle principale
 void loop(void) {
-  //Lire l'id du badge, si badge il y a
   readUid();
-  //Lire la taille
+  
   readHeight();
-
+  
   if (newUid) {
     onNewUid();
   }
-
+  
   if (checkMove) {
     onMove();
   }
 }
-

@@ -1,3 +1,4 @@
+
 #include <SharpIR.h>
 #include <SPI.h>
 #include <PN532_SPI.h>
@@ -21,6 +22,7 @@
 // model : an int that determines your sensor : 1080 for GP2Y0A21Y
 //                                              20150 for GP2Y0A02Y
 //                                              (working distance range according to the datasheets)
+int ir_pin = A0;
 SharpIR sharp(IR_PIN, 30, 40, IR_MODEL);
 int height=-1;
 // -------
@@ -32,7 +34,7 @@ uint8_t uid[]={ 0, 0, 0, 0, 0, 0, 0 };
 uint8_t uidLength=0;
 char uidString[UID_MAX_LENGTH]="";
 char authorizedIDs[][15] = { // Fabien, Cédric, Walid, Nacim
-  "e40657ec", "6a2cd90b", "6a6dde0b", "8a91d90b"
+  "e40657ec", "6a2cd90b", "6a6dde0b", "261c589c"
 };
 int associatedHeight[5] = {
   80, 73, 73, 80
@@ -82,8 +84,13 @@ void readHeight(void) {
   Serial.print(height);
   Serial.println("cm");
 
-  height=sharp.distance();
-
+  //obtenir une moyenne d'échantillons
+  int averageValue=0;
+  for(unsigned int i=0; i < 5; i++) {
+    averageValue += sharp.distance();
+  }
+  averageValue /= 5;
+  height = averageValue;
 }
 
 void convertUIDtoString(void) {
@@ -152,8 +159,14 @@ void printTargetHeight(boolean found) {
 void printMove() {
   if (goingUp) {
     Serial.print("Moving up ");
+    digitalWrite(RELAY_DOWN, HIGH);
+    digitalWrite(RELAY_UP, LOW);
+    delay(2000);
   } else {
     Serial.print("Moving down ");
+    digitalWrite(RELAY_DOWN, LOW);
+    digitalWrite(RELAY_UP, HIGH);
+    delay(2000);
   }
   Serial.print(height);
   Serial.print("/");
@@ -254,4 +267,3 @@ void loop(void) {
     onMove();
   }
 }
-

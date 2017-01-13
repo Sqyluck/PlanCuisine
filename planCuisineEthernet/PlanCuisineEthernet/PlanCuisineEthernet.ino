@@ -138,18 +138,23 @@ void readClient() {
             //relayActivated = true;
             goingUp = false;
             Serial.println("down");
-          }else{
+          }else if(readString.indexOf("http://192.168.1.177/nop")){
+            razRelay();
             checkMove = false;
           }
           client.println("HTTP/1.1 200 OK");
           client.println("Content-Type: text/html");
           client.println("Connection: close");  // the connection will be closed after completion of the response
-          client.println("Refresh: 2");  // refresh the page automatically every 5 sec
+          //client.println("Refresh: 2");  // refresh the page automatically every 5 sec
           client.println();
           client.println("<!DOCTYPE HTML>");
+          client.println("<head>");
+          client.println("<link rel=\"stylesheet\" href=\"https://unpkg.com/purecss@0.6.2/build/pure-min.css\">");
+          client.println("</head>");
           client.println("<html>");
-          client.println("<a href=\"http://192.168.1.177/up\">Monter</a>");
-          client.println("<a href=\"http://192.168.1.177/down\">Descendre</a>");
+          client.println("<a class=\"pure-button\" href=\"http://192.168.1.177/up\">Monter</a>");
+          client.println("<a class=\"pure-button\" href=\"http://192.168.1.177/down\">Descendre</a>");
+          client.println("<a class=\"pure-button\" href=\"http://192.168.1.177/nop\">stop!</a>");
           client.println("</html>");
           break;
         }

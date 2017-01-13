@@ -1,0 +1,112 @@
+#include <SharpIR.h>
+#include <string.h>
+#include <SoftwareSerial.h>
+
+
+#define IR_PIN A0
+#define RELAY_UP 4 // Up yellow brown
+#define RELAY_DOWN 7 // Down violet red
+#define IR_MODEL 20150
+#define UID_MAX_LENGTH 15
+#define HEIGHT_TOLERANCE 1
+
+
+const int RX_PIN = 0;
+const int TX_PIN = 1;
+const int BLUETOOTH_BAUD_RATE = 9600;
+//char lecture [2] = "";
+
+SoftwareSerial bluetooth(RX_PIN, TX_PIN);
+// SHARP IR
+// first parameter : the pin where your sensor is attached
+// second parameter : the number of readings the library will make before calculating a mean distance
+// third parameter : the difference between two consecutive measurements to be taken as valid
+// model : an int that determines your sensor : 1080 for GP2Y0A21Y
+//                                              20150 for GP2Y0A02Y
+//                                              (working distance range according to the datasheets)
+SharpIR sharp(IR_PIN, 30, 40, IR_MODEL);
+int height=-1;
+// -------
+
+boolean checkMove=false;
+boolean relayActivated=false;
+boolean goingUp=true;
+// -------
+
+void setup(void) {
+  Serial.begin(9600);
+  bluetooth.begin(BLUETOOTH_BAUD_RATE);
+  // SHARP IR
+  pinMode(IR_PIN, INPUT);
+  // -------
+  
+  pinMode(7, OUTPUT);
+  digitalWrite(7, HIGH);
+  
+  
+  // RELAY CARD
+  pinMode(RELAY_UP, OUTPUT);
+  pinMode(RELAY_DOWN, OUTPUT);
+  // -------  
+  digitalWrite(RELAY_UP, LOW);
+  digitalWrite(RELAY_DOWN, HIGH);
+  delay(3000);
+  digitalWrite(RELAY_UP, HIGH);
+  digitalWrite(RELAY_DOWN, LOW);
+  delay(3000);
+  digitalWrite(RELAY_UP, HIGH);
+  digitalWrite(RELAY_DOWN, HIGH);
+
+Serial.println("SETUP");
+}
+
+void readHeight(void) {
+  
+  Serial.print("Current height : ");
+  Serial.print(height);
+  Serial.println("cm");
+  unsigned int averageHeight=0;
+  for(unsigned int i=0; i<5; i++) {
+    averageHeight += sharp.distance();
+  }
+  averageHeight /= 5;
+  height = averageHeight;
+}
+
+void razRelay() {
+  digitalWrite(RELAY_DOWN, HIGH);
+  digitalWrite(RELAY_UP, HIGH);
+}
+
+void goUp() {
+  razRelay();
+  digitalWrite(RELAY_DOWN, LOW);
+  digitalWrite(RELAY_UP, HIGH);
+  Serial.println("Moving up");
+  delay(1000);
+}
+
+void goDown() {
+  razRelay();
+  digitalWrite(RELAY_DOWN, HIGH);
+  digitalWrite(RELAY_UP, LOW);
+  Serial.println("Moving down");
+  delay(1000);
+}
+
+void loop(void) {
+   if (bluetooth.available()) {
+    char lecture = bluetooth.read();
+    if(lecture == 'U'){
+      goUp();
+    }else if(lecture == 'D'){
+      goDown();
+    }else if(lecture == 'S'){
+      razRelay();
+    }
+  }
+
+  if(Serial.available()){
+    bluetooth.write(Serial.read());
+  }
+}
